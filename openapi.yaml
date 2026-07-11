@@ -1,0 +1,406 @@
+openapi: 3.1.0
+info:
+  title: Ryppl API (ryppl-contracts)
+  version: 0.1.0-mvp
+  description: >
+    Source-of-truth API + sanitized-AI-context contract for Ryppl.
+    On-device-first: the device assembles and SANITIZES context; the backend is a thin,
+    stateless AI gateway + identity + notifications layer that PERSISTS NO conversation content.
+    Codegen targets: Dart (ryppl-mobile), Java/Spring (ryppl-backend), TypeScript (ryppl-admin).
+    All user-facing text returned by /ai/* MUST satisfy the ryppl-companion-voice rules
+    (warm, positive-only, "we" not "you", ask-before-advice, no medical claims).
+servers:
+  - url: https://api.ryppl.app/v1
+# Auth is performed on-device via social IdPs (Google / Apple). The app sends the provider's
+# OIDC ID token (JWT) as a Bearer token. The backend mints no token and runs no login system;
+# it only VERIFIES this JWT at the edge (stateless JWKS, pseudonymous sub). Verification is
+# documented now and wired in Sprint 2 — the gateway is open for local/MVP dev.
+security:
+  - providerIdToken: []     # Google / Apple OIDC ID token (verified at the edge)
+
+paths:
+  /ai/converse:
+    post:
+      summary: Streamed companion conversation turn (SSE)
+      description: >
+        Accepts a sanitized AiContext and streams companion text tokens via
+        Server-Sent Events. A trailing event may include suggested quick-reply chips.
+        Backend processes ephemerally and stores no content.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: SSE stream (text/event-stream). Events; `token` (delta text), `replies` (QuickReply[]), `done`.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /ai/insight:
+    post:
+      summary: Generate one positive, data-grounded insight
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Insight
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Insight' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ai/checkin-card:
+    post:
+      summary: Generate a personalized check-in card (question + quick replies)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Card
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Card' }
+
+  /ai/milestones:
+    post:
+      summary: Suggest milestones for a goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Milestone suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Milestone' }
+
+  /ai/food-vision:
+    post:
+      summary: Estimate nutrition from a food photo
+      description: >
+        Multipart; the image is processed ephemerally for estimation and NOT stored.
+        The device keeps the photo locally and persists only the confirmed estimate.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image: { type: string, format: binary }
+                context: { $ref: '#/components/schemas/AiContext' }
+              required: [image, context]
+      responses:
+        '200':
+          description: Food estimate (to confirm on device)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FoodEstimate' }
+
+  /profile:
+    get:
+      summary: Get minimal profile
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+    put:
+      summary: Update minimal profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Profile' }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+
+  /consent:
+    post:
+      summary: Record a consent change (ledger)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsentChange' }
+      responses:
+        '204': { description: Recorded }
+
+  /push/register:
+    post:
+      summary: Register a push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushRegistration' }
+      responses:
+        '204': { description: Registered }
+
+  /backup:
+    put:
+      summary: Store opaque end-to-end-encrypted backup blob (server cannot read). Sprint 5+.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BackupBlob' }
+      responses:
+        '204': { description: Stored }
+    get:
+      summary: Retrieve opaque E2E backup blob
+      responses:
+        '200':
+          description: Backup blob
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupBlob' }
+
+  /account:
+    delete:
+      summary: Delete the minimal server record (device wipes local data separately)
+      responses:
+        '204': { description: Deleted }
+
+components:
+  securitySchemes:
+    providerIdToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        OIDC ID token issued by a social provider (Google / Apple) during on-device sign-in.
+        The backend verifies it statelessly (JWKS) and reads a pseudonymous subject. No backend
+        login system; no token minting.
+
+  responses:
+    BadRequest:
+      description: Invalid request (e.g., sanitization schema violation)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing/invalid JWT
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    # ---------- Sanitized AI context (what leaves the device) ----------
+    AiContext:
+      type: object
+      description: >
+        Sanitized, pseudonymous, ephemeral context. FORBIDDEN: full name, email, phone,
+        device ids, precise location, raw health rows, raw timestamps beyond need.
+      required: [sessionId, locale, partOfDay, intent]
+      properties:
+        sessionId: { type: string, format: uuid, description: pseudonymous, rotating }
+        locale: { type: string, example: en-US }
+        partOfDay: { type: string, enum: [morning, afternoon, evening] }
+        addressAs: { type: string, description: first-name/nickname only, optional, user-controlled }
+        dimensions:
+          type: array
+          items: { $ref: '#/components/schemas/DimensionContext' }
+        goals:
+          type: array
+          items: { $ref: '#/components/schemas/GoalContext' }
+        memory:
+          type: array
+          description: top-k relevant facts, no identifiers
+          items: { $ref: '#/components/schemas/MemoryFact' }
+        recentTurns:
+          type: array
+          description: short on-device window
+          items: { $ref: '#/components/schemas/Turn' }
+        userInput: { $ref: '#/components/schemas/TurnInput' }
+        intent:
+          type: string
+          enum: [converse, insight, checkin_card, food_vision, milestones]
+      additionalProperties: false
+
+    DimensionContext:
+      type: object
+      required: [dimension]
+      properties:
+        dimension: { type: integer, minimum: 1, maximum: 9 }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        momentum: { type: string, enum: [strong, building, balanced, new_focus, room_to_grow] }
+        recent: { type: string, description: summarized signal, e.g. "sleep 7h24m, HRV +12% vs avg" }
+      additionalProperties: false
+
+    GoalContext:
+      type: object
+      properties:
+        title: { type: string }
+        progressPct: { type: integer, minimum: 0, maximum: 100 }
+        milestone:
+          type: object
+          properties:
+            title: { type: string }
+            progressPct: { type: integer, minimum: 0, maximum: 100 }
+      additionalProperties: false
+
+    MemoryFact:
+      type: object
+      required: [kind, content]
+      properties:
+        kind: { type: string, enum: [goal, preference, setback, win, context] }
+        content: { type: string }
+        dimension: { type: integer, minimum: 1, maximum: 9 }
+      additionalProperties: false
+
+    Turn:
+      type: object
+      properties:
+        role: { type: string, enum: [user, companion] }
+        text: { type: string }
+      required: [role, text]
+      additionalProperties: false
+
+    TurnInput:
+      type: object
+      properties:
+        text: { type: string }
+        voiceTranscript: { type: string }
+        cardAnswer:
+          type: object
+          properties:
+            cardId: { type: string }
+            value: { type: string }
+      additionalProperties: false
+
+    # ---------- AI outputs (structured, validated, companion-voice) ----------
+    Insight:
+      type: object
+      required: [dimension, text]
+      properties:
+        dimension: { type: integer, minimum: 1, maximum: 9 }
+        text: { type: string, description: warm, positive, ≤180 chars }
+        basis: { type: string, description: what data grounded it, e.g. "Apple Health · 7h24m" }
+        tone: { type: string, const: positive }
+      additionalProperties: false
+
+    QuickReply:
+      type: object
+      required: [label, value]
+      properties:
+        label: { type: string }
+        emoji: { type: string }
+        value: { type: string }
+        followUp: { type: string, description: card id or "ai_turn" }
+      additionalProperties: false
+
+    Card:
+      type: object
+      required: [kind, prompt, replies]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [checkin, insight, celebration, reflection, log, outreach] }
+        dimension: { type: integer, minimum: 1, maximum: 9 }
+        trigger: { type: string, enum: [time, signal, goal, absence, post_meal, user_open] }
+        prompt: { type: string, description: warm question, ≤140 chars }
+        replies:
+          type: array
+          minItems: 2
+          maxItems: 4
+          items: { $ref: '#/components/schemas/QuickReply' }
+        allowVoice: { type: boolean, default: true }
+        allowFreeText: { type: boolean, default: false }
+        allowSkip: { type: boolean, default: true }
+        allowImage: { type: boolean, default: false }
+      additionalProperties: false
+
+    Milestone:
+      type: object
+      required: [title, dimension]
+      properties:
+        title: { type: string }
+        dimension: { type: integer, minimum: 1, maximum: 9 }
+        target: { type: string }
+        window: { type: string, example: "this month" }
+        rationale: { type: string }
+      additionalProperties: false
+
+    FoodEstimate:
+      type: object
+      required: [items, kcal]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              qty: { type: string }
+        kcal: { type: integer }
+        macros:
+          type: object
+          properties:
+            protein: { type: number }
+            carbs: { type: number }
+            fat: { type: number }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        note: { type: string, description: warm, in-voice }
+      additionalProperties: false
+
+    # ---------- Minimal account data ----------
+    Profile:
+      type: object
+      properties:
+        displayName: { type: string }
+        addressAs: { type: string }
+        timezone: { type: string, example: America/New_York }
+        locale: { type: string, example: en-US }
+      additionalProperties: false
+
+    ConsentChange:
+      type: object
+      required: [category, granted]
+      properties:
+        category: { type: string, example: health_signals }
+        jurisdiction: { type: string, example: US-WA }
+        granted: { type: boolean }
+      additionalProperties: false
+
+    PushRegistration:
+      type: object
+      required: [platform, token]
+      properties:
+        platform: { type: string, enum: [apns, fcm] }
+        token: { type: string }
+      additionalProperties: false
+
+    BackupBlob:
+      type: object
+      required: [ciphertext, version]
+      properties:
+        ciphertext: { type: string, description: opaque/E2E; server cannot read }
+        version: { type: integer }
+      additionalProperties: false
+
+    Error:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+      required: [code, message]
+      additionalProperties: false
