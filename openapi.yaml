@@ -181,6 +181,91 @@ paths:
       responses:
         '204': { description: Deleted }
 
+  # ---------- Ryppls (V1.1 AC-01 / SR-SCORE-01..05) ----------
+  # Server is the source of truth; the device caches for display only. Keyed by the
+  # pseudonymous subject. Events carry generic action codes only — never health
+  # content or goal text. Ryppls only ever go up.
+  /score:
+    get:
+      summary: Lifetime Ryppls, current level and progress to the next level
+      parameters:
+        - { name: tz, in: query, required: false, schema: { type: string }, description: IANA zone for "this week" }
+      responses:
+        '200':
+          description: Score
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Score' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /score/events:
+    post:
+      summary: Report one earning action (server decides points, caps, one-time rules)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScoreEventRequest' }
+      responses:
+        '200':
+          description: Award result (awarded=false with a reason when capped/duplicate)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AwardResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    get:
+      summary: Score History log, newest first
+      parameters:
+        - { name: before, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: One page of events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScoreEventPage' }
+
+  /score/catalog:
+    get:
+      summary: The "How you earn Ryppls" legend (admin-configured)
+      responses:
+        '200':
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScoreCatalogItem' }
+
+  /score/levels:
+    get:
+      summary: All levels in order, with taglines (Level Journey)
+      responses:
+        '200':
+          description: Levels
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Level' }
+
+  /score/backfill:
+    post:
+      summary: One-time launch backfill for existing testers (SR-SCORE-02); safe to repeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BackfillRequest' }
+      responses:
+        '200':
+          description: Events awarded by this call (empty when already done)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScoreEvent' }
+
 components:
   securitySchemes:
     providerIdToken:
@@ -403,4 +488,105 @@ components:
         code: { type: string }
         message: { type: string }
       required: [code, message]
+      additionalProperties: false
+
+    # ---------- Ryppls ----------
+    Level:
+      type: object
+      required: [id, name, badge, min]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        badge: { type: string, description: emoji }
+        min: { type: integer, format: int64 }
+        max: { type: [integer, 'null'], format: int64, description: null for the top level (Champion) }
+        tagline: { type: [string, 'null'] }
+      additionalProperties: false
+
+    NextLevel:
+      type: object
+      required: [id, name, min]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        min: { type: integer, format: int64 }
+      additionalProperties: false
+
+    Score:
+      type: object
+      required: [lifetime, level, levelProgress, weekRyppls]
+      properties:
+        lifetime: { type: integer, format: int64, description: plain integer — never shown as a percentage }
+        level: { $ref: '#/components/schemas/Level' }
+        next: { oneOf: [ { $ref: '#/components/schemas/NextLevel' }, { type: 'null' } ] }
+        toNext: { type: [integer, 'null'], format: int64 }
+        levelProgress: { type: number, minimum: 0, maximum: 1, description: 'bar fill fraction only — never rendered as a percentage label' }
+        weekRyppls: { type: integer, format: int64 }
+        updatedAt: { type: [string, 'null'], format: date-time }
+      additionalProperties: false
+
+    ScoreEventRequest:
+      type: object
+      required: [clientEventId, type]
+      properties:
+        clientEventId: { type: string, description: idempotency key }
+        type: { type: string, description: 'catalog code, e.g. food_logged' }
+        occurredAt: { type: string, format: date-time }
+        tz: { type: string, description: IANA zone (caps apply per local day) }
+        area: { type: string, enum: [nutrition, holistic, mood] }
+        goalRef: { type: string, description: opaque on-device goal id — never goal text }
+      additionalProperties: false
+
+    ScoreEvent:
+      type: object
+      required: [type, label, points, localDate, earnedAt, oneTime]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        label: { type: string, description: generic plain-language label }
+        points: { type: integer, minimum: 1 }
+        area: { type: [string, 'null'] }
+        localDate: { type: string, format: date }
+        earnedAt: { type: string, format: date-time }
+        oneTime: { type: boolean }
+      additionalProperties: false
+
+    AwardResult:
+      type: object
+      required: [awarded, score]
+      properties:
+        awarded: { type: boolean }
+        reason: { type: [string, 'null'], enum: [duplicate, cap_reached, one_time_used, not_eligible, null] }
+        event: { oneOf: [ { $ref: '#/components/schemas/ScoreEvent' }, { type: 'null' } ] }
+        score: { $ref: '#/components/schemas/Score' }
+      additionalProperties: false
+
+    ScoreEventPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ScoreEvent' } }
+        nextBefore: { type: [string, 'null'], format: date-time }
+      additionalProperties: false
+
+    ScoreCatalogItem:
+      type: object
+      required: [type, label, points, oneTime]
+      properties:
+        type: { type: string }
+        label: { type: string }
+        points: { type: integer, minimum: 1 }
+        capPerDay: { type: [integer, 'null'] }
+        capPerWeek: { type: [integer, 'null'] }
+        oneTime: { type: string, enum: [NONE, USER, AREA, GOAL] }
+      additionalProperties: false
+
+    BackfillRequest:
+      type: object
+      required: [clientEventId, healthConnected]
+      properties:
+        clientEventId: { type: string }
+        areasWithGoals: { type: array, items: { type: string, enum: [nutrition, holistic, mood] } }
+        healthConnected: { type: boolean }
+        tz: { type: string }
       additionalProperties: false
