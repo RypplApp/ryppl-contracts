@@ -682,6 +682,7 @@ components:
           oneOf: [ { $ref: '#/components/schemas/EmotionalState' }, { type: 'null' } ]
         clientDate: { type: [string, 'null'], format: date, description: 'device-local calendar date' }
         timeZone: { type: [string, 'null'], description: 'device IANA zone' }
+        platform: { type: [string, 'null'], enum: [ios, android, null], description: 'device platform, so replies and goal wording name the right health app (Apple Health / Health Connect)' }
         loggedThisTurn:
           oneOf: [ { $ref: '#/components/schemas/LoggedThisTurn' }, { type: 'null' } ]
         reminders:
@@ -732,6 +733,7 @@ components:
         weeksOfData gates Pattern/Correlation (3+) and Journey (4+) cards.
       properties:
         weeksOfData: { type: [integer, 'null'], minimum: 0 }
+        rypplsThisWeek: { type: [integer, 'null'], minimum: 0, description: 'Ryppls earned in the last 7 days, from the score ledger. The weekly note may state only this number; absent means state none.' }
         weekFacts: { type: [array, 'null'], items: { type: string }, description: '"Tue: 3 meals logged, 7.2h sleep"' }
         todayFacts: { type: [array, 'null'], items: { type: string } }
         records: { type: [array, 'null'], items: { type: string }, description: 'genuinely-new personal bests' }
