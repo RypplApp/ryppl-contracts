@@ -14,3 +14,13 @@ The **single source of truth** for the Ryppl API and the sanitized-AI-context sc
 - Edit `openapi.yaml` / `schemas/`; run `npm run lint` to validate before committing.
 - Keep DTO shapes aligned with `ryppl-backend`'s `com.ryppl.ai.dto.AiOutputs` (e.g. `Insight`, `Card`, `Milestone`, `FoodEstimate`, `ExtractedGoals`, `ExtractedLog`).
 - All AI output text fields must satisfy the Ryppl companion voice (positive-only, warm, coach + partner + friend).
+
+## Quick reference
+- Lint: `env -u NODE_OPTIONS npm run lint`. A local NODE_OPTIONS hook breaks a plain `npm run lint`.
+- **Coverage:**
+  - Every V1.1 endpoint: account, companions, score, safety, admin, `/ai/home`, highlights and `/ai/nudge`.
+  - The extraction endpoints: `/ai/extract-log`, `/ai/extract-goals` and `/ai/food-text`.
+  - The converse SSE events, including `safety`.
+  - The full `AiContext`: all fields optional, with `locale`, `platform` and `loggedThisTurn.profile`.
+- Not yet covered: `/me/*` billing.
+- Ship: PR → merge (no deploy). Mirror any backend DTO or AiContext change here in the same round.
