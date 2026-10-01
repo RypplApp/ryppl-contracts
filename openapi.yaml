@@ -283,6 +283,60 @@ paths:
                 items: { $ref: '#/components/schemas/ScoreEvent' }
 
   # ---------- V1.1 AI surfaces (sanitized AiContext in, companion-voiced JSON out) ----------
+  /ai/extract-log:
+    post:
+      summary: Distil what the latest message says was done or consumed (meals, activity, mood, weight, steps)
+      description: >
+        Reads ONLY the latest user message. Returns no items on a Tier 1 crisis turn (AC-04).
+        A meal never logs directly — the app shows a Confirm / Edit card first.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Extracted items (empty when nothing concrete was stated)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExtractedLog' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ai/extract-goals:
+    post:
+      summary: Goals the person expressed (onboarding / Wave), new or updated
+      description: >
+        Empty until a goal is actually expressed. goalId is set only when an entry UPDATES an
+        existing goal. Completed goals are never returned. Empty on a Tier 1 crisis turn.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Extracted goals
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExtractedGoals' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ai/food-text:
+    post:
+      summary: Estimate nutrition from a typed meal description (may ask one clarifying question)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: The estimate, or a clarifying question, or isMeal=false (also on a crisis turn)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FoodTextResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
   /ai/home:
     post:
       summary: Home proactive companion card + Things To Do (V1.1 SR-HOME-01/02; max 3 each)
@@ -852,6 +906,62 @@ components:
         target: { type: string }
         window: { type: string, example: "this month" }
         rationale: { type: string }
+      additionalProperties: false
+
+    ExtractedLog:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              area: { type: string, enum: [nutrition, holistic, mood] }
+              kind: { type: string, enum: [meal, hydration, activity, mood, weight, steps] }
+              description: { type: string }
+              kcal: { type: [integer, 'null'] }
+              protein: { type: [number, 'null'], description: grams }
+              carbs: { type: [number, 'null'], description: grams }
+              fat: { type: [number, 'null'], description: grams }
+              fibre: { type: [number, 'null'], description: 'grams (B182-097)' }
+              minutes: { type: [integer, 'null'] }
+              mood: { type: [string, 'null'] }
+              weightKg: { type: [number, 'null'], description: 'a stated weight, normalised to kg' }
+              steps: { type: [integer, 'null'], description: 'only when the message states steps directly' }
+              correction: { type: [boolean, 'null'], description: 'true when correcting an earlier entry' }
+              mealType: { type: [string, 'null'], enum: [breakfast, lunch, dinner, snack, null], description: 'only when the user named it' }
+      additionalProperties: false
+
+    ExtractedGoals:
+      type: object
+      required: [goals]
+      properties:
+        goals:
+          type: array
+          items:
+            type: object
+            properties:
+              goalId: { type: [string, 'null'], description: 'set only when updating an existing goal' }
+              area: { type: string, enum: [nutrition, holistic, mood] }
+              title: { type: string }
+              tags: { type: array, items: { type: string } }
+              targetKg: { type: [number, 'null'] }
+              currentKg: { type: [number, 'null'] }
+              userText: { type: [string, 'null'], description: "the goal in the person's own words" }
+              objective: { type: [string, 'null'] }
+              tracking: { type: [string, 'null'] }
+      additionalProperties: false
+
+    FoodTextResult:
+      type: object
+      required: [isMeal, needsClarification]
+      properties:
+        isMeal: { type: boolean }
+        needsClarification: { type: boolean }
+        question: { type: [string, 'null'] }
+        estimate:
+          oneOf: [ { $ref: '#/components/schemas/FoodEstimate' }, { type: 'null' } ]
       additionalProperties: false
 
     FoodEstimate:
