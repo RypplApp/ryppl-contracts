@@ -34,7 +34,10 @@ paths:
       responses:
         '200':
           description: >
-            SSE stream (text/event-stream). Events, in order: `token` (delta text, repeated);
+            SSE stream (text/event-stream). Events: optional `safety` (JSON {"tier":1|2} — AC-04;
+            sent before the first `token` when the server classifier detects Tier 1/2, or as tier 1
+            just before `done` when only the model's reply was a crisis reply; the device then shows
+            the care card for tier 1 and runs no wellness processing for the turn); `token` (delta text, repeated);
             optional `options` (JSON QuickReply[] — interactive chips split out of the text);
             optional `reminder` (JSON ReminderAction — V1.1 AC-03, emitted only after the user
             CONFIRMED a create/update/delete in Wave; the device applies it to its on-device
@@ -712,6 +715,12 @@ components:
         pendingFood: { type: [string, 'null'], description: 'a meal awaiting the user''s confirmation' }
         pendingFoodQueued: { type: [boolean, 'null'] }
         failed: { type: [boolean, 'null'] }
+        profile:
+          type: [object, 'null']
+          description: 'Profile fields saved on the device this turn (B182-070), e.g. a height told to Wave'
+          properties:
+            heightCm: { type: [number, 'null'] }
+          additionalProperties: false
       additionalProperties: false
 
     ReminderContext:
@@ -863,6 +872,7 @@ components:
             protein: { type: number }
             carbs: { type: number }
             fat: { type: number }
+            fibre: { type: [number, 'null'], minimum: 0, maximum: 100, description: 'grams' }
         confidence: { type: number, minimum: 0, maximum: 1 }
         note: { type: string, description: 'warm, in-voice' }
       additionalProperties: false
