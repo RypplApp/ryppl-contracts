@@ -771,7 +771,7 @@ components:
           items: { $ref: '#/components/schemas/ReminderContext' }
         highlights:
           oneOf: [ { $ref: '#/components/schemas/HighlightsInput' }, { type: 'null' } ]
-          description: V1.1 SR-HL-01/02 — sent on the highlights intents only
+          description: V1.1 SR-HL-01/02 — sent on the highlights intents and on Wave (converse) turns
         subject:
           type: [string, 'null']
           description: SERVER-SET from the verified token. Any client value is ignored.
@@ -824,6 +824,7 @@ components:
         todayFacts: { type: [array, 'null'], items: { type: string } }
         records: { type: [array, 'null'], items: { type: string }, description: 'genuinely-new personal bests' }
         ryppls: { type: [array, 'null'], items: { type: string }, description: 'this week''s Ryppls by action' }
+        weeklyCards: { type: [array, 'null'], items: { type: string }, description: 'Wave turns only — the weekly Highlights cards already on the device ("heading — body")' }
       additionalProperties: false
 
     DimensionContext:
