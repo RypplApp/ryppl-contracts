@@ -302,6 +302,29 @@ paths:
               schema: { $ref: '#/components/schemas/ExtractedLog' }
         '400': { $ref: '#/components/responses/BadRequest' }
 
+  /ai/extract-reminders:
+    post:
+      summary: Reminders the latest message asked for or confirmed (B182-071 backstop)
+      description: >
+        The app calls this when a converse reply says a reminder was set but no `reminder` SSE
+        event arrived, so a confirmation is never left without the reminder behind it. Reads the
+        latest user message (the companion's preceding message may hold the details being
+        confirmed). Each item is validated exactly like the `reminder` event (daily / weekly /
+        once only; never an interval). Empty when no reminder was asked for, and on a Tier 1
+        crisis turn (AC-04).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Reminder actions to apply on the device (empty when none)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExtractedReminders' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
   /ai/extract-goals:
     post:
       summary: Goals the person expressed (onboarding / Wave), new or updated
@@ -907,6 +930,14 @@ components:
         window: { type: string, example: "this month" }
         rationale: { type: string }
       additionalProperties: false
+
+    ExtractedReminders:
+      type: object
+      required: [reminders]
+      properties:
+        reminders:
+          type: array
+          items: { $ref: '#/components/schemas/ReminderAction' }
 
     ExtractedLog:
       type: object
