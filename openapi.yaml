@@ -878,6 +878,10 @@ components:
           properties:
             cardId: { type: string }
             value: { type: string }
+        imageDescription:
+          type: [string, 'null']
+          maxLength: 200
+          description: 'IMAGE-01 · neutral one-sentence description of a photo with no food in it (from the food-vision read), so Wave can answer the photo shared this turn'
       additionalProperties: false
 
     # ---------- AI outputs (structured, validated, companion-voice) ----------
@@ -1017,6 +1021,14 @@ components:
             fibre: { type: [number, 'null'], minimum: 0, maximum: 100, description: 'grams' }
         confidence: { type: number, minimum: 0, maximum: 1 }
         note: { type: string, description: 'warm, in-voice' }
+        imageType:
+          type: [string, 'null']
+          enum: [food, label, menu, packaging, other, null]
+          description: 'IMAGE-01 · what kind of image it is (task.food_vision.v5); null from older prompts'
+        description:
+          type: [string, 'null']
+          maxLength: 200
+          description: 'IMAGE-01 · only for imageType other — one neutral sentence saying what the image shows'
       additionalProperties: false
 
     # ---------- Minimal account data ----------
