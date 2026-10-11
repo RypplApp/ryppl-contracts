@@ -763,6 +763,10 @@ components:
         clientDate: { type: [string, 'null'], format: date, description: 'device-local calendar date' }
         timeZone: { type: [string, 'null'], description: 'device IANA zone' }
         platform: { type: [string, 'null'], enum: [ios, android, null], description: 'device platform, so replies and goal wording name the right health app (Apple Health / Health Connect)' }
+        profileOnFile:
+          type: [array, 'null']
+          items: { type: string, enum: [age, height, sex, weight] }
+          description: 'Which Profile details the phone already holds — names only, the values never leave the device — so Wave never asks for them again (2026-10-10 item 3).'
         loggedThisTurn:
           oneOf: [ { $ref: '#/components/schemas/LoggedThisTurn' }, { type: 'null' } ]
         reminders:
