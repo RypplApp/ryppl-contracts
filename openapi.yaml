@@ -967,6 +967,7 @@ components:
               steps: { type: [integer, 'null'], description: 'only when the message states steps directly' }
               correction: { type: [boolean, 'null'], description: 'true when correcting an earlier entry' }
               mealType: { type: [string, 'null'], enum: [breakfast, lunch, dinner, snack, null], description: 'only when the user named it' }
+              quantity: { type: [string, 'null'], description: 'the amount as stated ("5 tsp", "25 g"); one item per food (extract.log.v18)' }
       additionalProperties: false
 
     ExtractedGoals:
