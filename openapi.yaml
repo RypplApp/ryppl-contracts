@@ -766,7 +766,7 @@ components:
         profileOnFile:
           type: [array, 'null']
           items: { type: string, enum: [age, height, sex, weight] }
-          description: 'Which Profile details the phone already holds — names only, the values never leave the device — so Wave never asks for them again (2026-10-10 item 3).'
+          description: 'Which Profile details the phone already holds — names only, never the values — so Wave never asks for them again (2026-10-10 item 3). "height" includes a height from the health app (BUG-35). The latest weight value travels separately, in signals (R7).'
         loggedThisTurn:
           oneOf: [ { $ref: '#/components/schemas/LoggedThisTurn' }, { type: 'null' } ]
         reminders:
@@ -798,9 +798,13 @@ components:
         failed: { type: [boolean, 'null'] }
         profile:
           type: [object, 'null']
-          description: 'Profile fields saved on the device this turn (B182-070), e.g. a height told to Wave'
+          description: 'Profile fields saved on the device this turn (B182-070), e.g. a height told to Wave — by NAME only, never the value (BUG-35). The server keeps only allow-listed names and drops every other key.'
           properties:
-            heightCm: { type: [number, 'null'] }
+            saved: { type: [array, 'null'], items: { type: string, enum: [height] } }
+            heightCm:
+              type: [number, 'null']
+              deprecated: true
+              description: 'Older apps only. Read as "height saved"; the number is discarded on arrival and never reaches the model.'
           additionalProperties: false
       additionalProperties: false
 
