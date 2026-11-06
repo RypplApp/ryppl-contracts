@@ -41,7 +41,11 @@ paths:
             optional `options` (JSON QuickReply[] — interactive chips split out of the text);
             optional `reminder` (JSON ReminderAction — V1.1 AC-03, emitted only after the user
             CONFIRMED a create/update/delete in Wave; the device applies it to its on-device
-            reminder store, the backend persists nothing); then `done` (empty data).
+            reminder store, the backend persists nothing); optional `lookup` (JSON LookupRequest —
+            2026-11, ONLY when the request's `capabilities` holds "lookup.v1" and it carries no
+            `lookup` result: Wave needs phone data its context lacks; the turn's text ends there,
+            the device answers from the phone and calls converse again with the same input plus
+            `lookup`; one round only); then `done` (empty data).
           content:
             text/event-stream:
               schema: { type: string }
@@ -323,6 +327,70 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ExtractedReminders' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ai/extract-memory:
+    post:
+      summary: Lasting facts from the latest message (2026-11 Wave memory)
+      description: >
+        Send intent "extract_memory" with the device's memory facts (each with its `id`) and the
+        recent turns. Returns changes to keep on the device: `add` (no id), `update` (id + new
+        content), `remove` (id). Only ids the device sent are ever returned. Never a fact about
+        crisis, self-harm, substance use, or age / height / weight / biological sex; at most 120
+        characters each. Empty on a Tier 1 or Tier 2 turn.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: Memory changes (empty when nothing lasting was said)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExtractedMemory' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ai/summarize:
+    post:
+      summary: Fold older messages into the running conversation summary (2026-11)
+      description: >
+        `conversationSummary` = the summary so far; `recentTurns` = the OLDER messages to fold in
+        (with their `date`). Returns the new summary (at most 900 characters, nothing about a
+        crisis). 204 = keep the old summary.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: The new summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationSummary' }
+        '204': { description: Nothing valid — keep the old summary }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /ai/opener:
+    post:
+      summary: Wave's first message of the day (2026-11)
+      description: >
+        One to three sentences that pick up one remembered thread with one specific question.
+        Validated (greeting matches partOfDay, never a generic "how are you feeling?", no deficit
+        wording, at most one emoji). 204 = the app uses its own template.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiContext' }
+      responses:
+        '200':
+          description: The opener
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Opener' }
+        '204': { description: Nothing valid — use the app template }
         '400': { $ref: '#/components/responses/BadRequest' }
 
   /ai/extract-goals:
@@ -767,6 +835,17 @@ components:
           type: [array, 'null']
           items: { type: string, enum: [age, height, sex, weight] }
           description: 'Which Profile details the phone already holds — names only, never the values — so Wave never asks for them again (2026-10-10 item 3). The latest weight value travels separately, in signals (R7).'
+        conversationSummary:
+          type: [string, 'null']
+          maxLength: 900
+          description: '2026-11 · the device-kept running summary of the conversation older than recentTurns'
+        capabilities:
+          type: [array, 'null']
+          items: { type: string, enum: [lookup.v1] }
+          description: '2026-11 · what this app build handles; "lookup.v1" = it answers the converse `lookup` event. Older apps omit it and are never sent one.'
+        lookup:
+          oneOf: [ { $ref: '#/components/schemas/LookupResult' }, { type: 'null' } ]
+          description: '2026-11 · the device answer to this turn''s lookup (on the follow-up converse call only)'
         loggedThisTurn:
           oneOf: [ { $ref: '#/components/schemas/LoggedThisTurn' }, { type: 'null' } ]
         reminders:
@@ -866,6 +945,7 @@ components:
         kind: { type: string, enum: [goal, preference, setback, win, context] }
         content: { type: string }
         dimension: { type: integer, minimum: 1, maximum: 9 }
+        id: { type: [string, 'null'], description: '2026-11 · the on-device fact id, so a memory update can name it' }
       additionalProperties: false
 
     Turn:
@@ -873,8 +953,62 @@ components:
       properties:
         role: { type: string, enum: [user, companion] }
         text: { type: string }
+        date: { type: [string, 'null'], format: date, description: '2026-11 · device-local day the message was sent' }
       required: [role, text]
       additionalProperties: false
+
+    LookupRequest:
+      type: object
+      description: 'Payload of the converse SSE `lookup` event (validated server-side)'
+      required: [tool]
+      properties:
+        tool: { type: string, enum: [food_history, metric_history, conversation_search] }
+        from: { type: string, format: date, description: 'food_history — at most 31 days before `to`, within the last 90' }
+        to: { type: string, format: date }
+        metric: { type: string, enum: [steps, sleep, weight, resting_hr, hrv, active_energy, workouts, mood] }
+        days: { type: integer, minimum: 1, maximum: 90 }
+        query: { type: string, minLength: 2, maxLength: 60 }
+
+    LookupResult:
+      type: object
+      required: [tool, lines]
+      properties:
+        tool: { type: string }
+        args: { type: object, additionalProperties: true, description: 'the request fields as received' }
+        lines:
+          type: array
+          maxItems: 60
+          items: { type: string, maxLength: 300 }
+          description: 'coarse dated summaries from the phone ("Mon 2 Nov: Breakfast: 2 idli"); empty = nothing recorded'
+      additionalProperties: false
+
+    ExtractedMemory:
+      type: object
+      required: [changes]
+      properties:
+        changes:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [action]
+            properties:
+              action: { type: string, enum: [add, update, remove] }
+              id: { type: [string, 'null'] }
+              kind: { type: [string, 'null'], enum: [preference, context, setback, win, null] }
+              content: { type: [string, 'null'], maxLength: 120 }
+
+    ConversationSummary:
+      type: object
+      required: [summary]
+      properties:
+        summary: { type: string, maxLength: 900 }
+
+    Opener:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
 
     TurnInput:
       type: object
