@@ -841,8 +841,8 @@ components:
           description: '2026-11 · the device-kept running summary of the conversation older than recentTurns'
         capabilities:
           type: [array, 'null']
-          items: { type: string, enum: [lookup.v1] }
-          description: '2026-11 · what this app build handles; "lookup.v1" = it answers the converse `lookup` event. Older apps omit it and are never sent one.'
+          items: { type: string, enum: [lookup.v1, markdown.v1] }
+          description: '2026-11 · what this app build handles; "lookup.v1" = it answers the converse `lookup` event; "markdown.v1" = it renders bold, bullets and tables in Wave replies, so Wave may answer a table request with a markdown table. Older apps omit them and get neither.'
         lookup:
           oneOf: [ { $ref: '#/components/schemas/LookupResult' }, { type: 'null' } ]
           description: '2026-11 · the device answer to this turn''s lookup (on the follow-up converse call only)'
