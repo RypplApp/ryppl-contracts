@@ -1169,9 +1169,9 @@ components:
         macros:
           type: object
           properties:
-            protein: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
-            carbs: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
-            fat: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
+            protein: { type: [number, 'null'], description: 'grams; null on the safety-only empty estimate a Tier 1 or medical emergency caption gets' }
+            carbs: { type: [number, 'null'], description: 'grams; null on the safety-only empty estimate a Tier 1 or medical emergency caption gets' }
+            fat: { type: [number, 'null'], description: 'grams; null on the safety-only empty estimate a Tier 1 or medical emergency caption gets' }
             fibre: { type: [number, 'null'], minimum: 0, maximum: 100, description: 'grams' }
         confidence: { type: number, minimum: 0, maximum: 1 }
         note:
@@ -1180,8 +1180,12 @@ components:
             warm, in-voice; null when there is nothing to say. On a safety-only estimate (`safety`
             present) it carries the server's locked safety words for compatibility with older apps,
             which ignore `safety` and show `note` for an empty read: the locked medical emergency
-            reply (or its follow-up reply), with the region's emergency number, for
-            {"kind":"emergency"}; the locked Tier 1 reply, with the region's crisis resources, for
+            reply (or its follow-up reply) for {"kind":"emergency"}, which names an emergency number
+            only when the device locale gives a country the server has one for, and otherwise asks
+            them to call their local emergency number;
+            the locked Tier 1 reply, with crisis resources for the country the device locale
+            identifies (then worldwide ones), or worldwide resources only when no country can be
+            identified, for
             {"tier":1}. It may be null there if the server cannot build those words. Apps that
             handle `safety` show their own card and locked line instead and never show this note.
         imageType:
