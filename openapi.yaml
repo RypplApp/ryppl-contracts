@@ -127,7 +127,12 @@ paths:
               required: [image, context]
       responses:
         '200':
-          description: Food estimate (to confirm on device)
+          description: >
+            Food estimate (to confirm on device). When the server's safety check flags the caption
+            (RYP-022), the photo is not analysed: the response is an empty estimate plus `safety` —
+            {"tier":1} for Tier 1, {"kind":"emergency"} for a medical emergency or its follow-up.
+            Tier 2 alone, an ordinary caption or no caption gets the ordinary estimate, with no
+            `safety` key.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FoodEstimate' }
@@ -1177,6 +1182,24 @@ components:
           type: [string, 'null']
           maxLength: 200
           description: 'IMAGE-01 · for imageType "other" only: a neutral one-line description of the image; null otherwise'
+        safety:
+          description: >
+            RYP-022 · present only on /ai/food-vision when the server's safety check flagged the
+            photo's caption before any image analysis (the estimate is then empty: no items, kcal 0,
+            confidence 0) — the same payload as the converse `safety` event: {"tier":1} for Tier 1,
+            {"kind":"emergency"} for a medical emergency or its follow-up. Absent (no key) on every
+            other response; Tier 2 alone is not flagged.
+          oneOf:
+            - type: object
+              required: [tier]
+              properties:
+                tier: { type: integer, const: 1 }
+              additionalProperties: false
+            - type: object
+              required: [kind]
+              properties:
+                kind: { type: string, const: emergency }
+              additionalProperties: false
       additionalProperties: false
 
     # ---------- Minimal account data ----------
