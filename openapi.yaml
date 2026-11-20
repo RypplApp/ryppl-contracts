@@ -37,7 +37,16 @@ paths:
             SSE stream (text/event-stream). Events: optional `safety` (JSON {"tier":1|2} — AC-04;
             sent before the first `token` when the server classifier detects Tier 1/2, or as tier 1
             just before `done` when only the model's reply was a crisis reply; the device then shows
-            the care card for tier 1 and runs no wellness processing for the turn); `token` (delta text, repeated);
+            the care card for tier 1 and runs no wellness processing for the turn — or JSON
+            {"kind":"emergency"} — RYP-009; sent before the first `token` when the turn is not Tier 1
+            and the server detects a medical emergency or its follow-up; a Tier 2 + emergency turn
+            sends this instead of tier 2, at most one `safety` event comes before the tokens, and no
+            late tier 1 follows an emergency; the reply is the locked emergency copy; the device shows
+            the medical emergency card, with no care card and no crisis flag; in a Wave text or voice
+            turn the device rolls back that turn's wellness writes and keeps nothing from it; in a
+            photo-caption conversation a meal already logged from the photo before the event stays
+            saved with its food Ryppl (D-5) and the Wave conversation Ryppl is withheld; older apps
+            ignore a `safety` payload without `tier`); `token` (delta text, repeated);
             optional `options` (JSON QuickReply[] — interactive chips split out of the text);
             optional `reminder` (JSON ReminderAction — V1.1 AC-03, emitted only after the user
             CONFIRMED a create/update/delete in Wave; the device applies it to its on-device
