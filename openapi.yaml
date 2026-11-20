@@ -1163,12 +1163,20 @@ components:
         macros:
           type: object
           properties:
-            protein: { type: number }
-            carbs: { type: number }
-            fat: { type: number }
+            protein: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
+            carbs: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
+            fat: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
             fibre: { type: [number, 'null'], minimum: 0, maximum: 100, description: 'grams' }
         confidence: { type: number, minimum: 0, maximum: 1 }
-        note: { type: string, description: 'warm, in-voice' }
+        note: { type: [string, 'null'], description: 'warm, in-voice; null when there is nothing to say' }
+        imageType:
+          type: [string, 'null']
+          enum: [food, label, menu, packaging, other, null]
+          description: 'IMAGE-01 · what the photo shows; null when the read gave no (known) type and on every non-photo path'
+        description:
+          type: [string, 'null']
+          maxLength: 200
+          description: 'IMAGE-01 · for imageType "other" only: a neutral one-line description of the image; null otherwise'
       additionalProperties: false
 
     # ---------- Minimal account data ----------
