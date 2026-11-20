@@ -131,8 +131,9 @@ paths:
             Food estimate (to confirm on device). When the server's safety check flags the caption
             (RYP-022), the photo is not analysed: the response is an empty estimate plus `safety` —
             {"tier":1} for Tier 1, {"kind":"emergency"} for a medical emergency or its follow-up.
-            Tier 2 alone, an ordinary caption or no caption gets the ordinary estimate, with no
-            `safety` key.
+            That empty estimate's `note` carries the server's locked safety words for older apps
+            (see `FoodEstimate.note`). Tier 2 alone, an ordinary caption or no caption gets the
+            ordinary estimate, with no `safety` key.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FoodEstimate' }
@@ -1173,7 +1174,16 @@ components:
             fat: { type: [number, 'null'], description: 'grams; null on the empty estimate a Tier 1 caption gets' }
             fibre: { type: [number, 'null'], minimum: 0, maximum: 100, description: 'grams' }
         confidence: { type: number, minimum: 0, maximum: 1 }
-        note: { type: [string, 'null'], description: 'warm, in-voice; null when there is nothing to say' }
+        note:
+          type: [string, 'null']
+          description: >
+            warm, in-voice; null when there is nothing to say. On a safety-only estimate (`safety`
+            present) it carries the server's locked safety words for compatibility with older apps,
+            which ignore `safety` and show `note` for an empty read: the locked medical emergency
+            reply (or its follow-up reply), with the region's emergency number, for
+            {"kind":"emergency"}; the locked Tier 1 reply, with the region's crisis resources, for
+            {"tier":1}. It may be null there if the server cannot build those words. Apps that
+            handle `safety` show their own card and locked line instead and never show this note.
         imageType:
           type: [string, 'null']
           enum: [food, label, menu, packaging, other, null]
@@ -1186,7 +1196,7 @@ components:
           description: >
             RYP-022 · present only on /ai/food-vision when the server's safety check flagged the
             photo's caption before any image analysis (the estimate is then empty: no items, kcal 0,
-            confidence 0) — the same payload as the converse `safety` event: {"tier":1} for Tier 1,
+            confidence 0; its `note` carries the locked safety words for older apps) — the same payload as the converse `safety` event: {"tier":1} for Tier 1,
             {"kind":"emergency"} for a medical emergency or its follow-up. Absent (no key) on every
             other response; Tier 2 alone is not flagged.
           oneOf:
